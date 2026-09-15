@@ -1463,6 +1463,24 @@
               },
               "type": "array"
             },
+            "resolvedModel": {
+              "description": "Model resolved for the recipient after role and runtime defaults apply.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "resolvedReasoningEffort": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ReasoningEffort"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Reasoning effort resolved for the recipient after role and runtime defaults apply."
+            },
             "senderThreadId": {
               "description": "Thread ID of the agent issuing the collab request.",
               "type": "string"

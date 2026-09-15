@@ -1034,7 +1034,12 @@ async fn thread_start_accepts_default_service_tier() -> Result<()> {
     let server = create_mock_responses_server_repeating_assistant("Done").await;
 
     let codex_home = TempDir::new()?;
-    create_config_toml_without_approval_policy(codex_home.path(), &server.uri())?;
+    create_config_toml(
+        codex_home.path(),
+        &server.uri(),
+        "sandbox_mode = \"read-only\"",
+        "[features]\nfast_mode = true",
+    )?;
 
     let mut mcp = TestAppServer::builder()
         .with_codex_home(codex_home.path())

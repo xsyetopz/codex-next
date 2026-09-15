@@ -23,6 +23,7 @@ use codex_app_server_protocol::TurnStartParams;
 use codex_app_server_protocol::TurnStartResponse;
 use codex_app_server_protocol::UserInput as V2UserInput;
 use codex_core::test_support::all_model_presets;
+use codex_features::Feature;
 use codex_protocol::config_types::CollaborationMode;
 use codex_protocol::config_types::ModeKind;
 use codex_protocol::config_types::SERVICE_TIER_DEFAULT_REQUEST_VALUE;
@@ -506,6 +507,7 @@ fn service_tier_model_and_tier_id() -> Result<(String, String)> {
 
 fn create_config_toml(codex_home: &std::path::Path, server_uri: &str) -> std::io::Result<()> {
     MockResponsesConfig::new(server_uri)
+        .enable_feature(Feature::FastMode)
         .with_root_config("compact_prompt = \"compact\"\nmodel_auto_compact_token_limit = 200000")
         .with_provider_config("supports_websockets = false")
         .write(codex_home)

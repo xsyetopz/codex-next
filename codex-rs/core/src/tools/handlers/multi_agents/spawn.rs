@@ -57,6 +57,8 @@ async fn handle_spawn_agent(
     let turn = &step_context.turn;
     let arguments = function_arguments(payload)?;
     let args: SpawnAgentArgs = parse_arguments(&arguments)?;
+    let requested_model = args.model.clone();
+    let requested_reasoning_effort = args.reasoning_effort.clone();
     let role_name = args
         .agent_type
         .as_deref()
@@ -83,8 +85,10 @@ async fn handle_spawn_agent(
                 receiver_thread_ids: Vec::new(),
                 receiver_agents: Vec::new(),
                 prompt: Some(prompt.clone()),
-                model: Some(args.model.clone().unwrap_or_default()),
-                reasoning_effort: Some(args.reasoning_effort.clone().unwrap_or_default()),
+                model: requested_model.clone(),
+                reasoning_effort: requested_reasoning_effort.clone(),
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: Default::default(),
             }),
         )
@@ -163,14 +167,12 @@ async fn handle_spawn_agent(
             ),
             (None, None) => (None, None, None),
         };
-    let effective_model = agent_snapshot
+    let resolved_model = agent_snapshot
         .as_ref()
-        .map(|snapshot| snapshot.model.clone())
-        .unwrap_or_else(|| args.model.clone().unwrap_or_default());
-    let effective_reasoning_effort = agent_snapshot
+        .map(|snapshot| snapshot.model.clone());
+    let resolved_reasoning_effort = agent_snapshot
         .as_ref()
-        .and_then(|snapshot| snapshot.reasoning_effort.clone())
-        .unwrap_or(args.reasoning_effort.unwrap_or_default());
+        .and_then(|snapshot| snapshot.reasoning_effort.clone());
     let nickname = new_agent_nickname.clone();
     let receiver_thread_ids = new_thread_id.into_iter().collect();
     let receiver_agents = new_thread_id
@@ -195,8 +197,10 @@ async fn handle_spawn_agent(
                 receiver_thread_ids,
                 receiver_agents,
                 prompt: Some(prompt),
-                model: Some(effective_model),
-                reasoning_effort: Some(effective_reasoning_effort),
+                model: requested_model,
+                reasoning_effort: requested_reasoning_effort,
+                resolved_model,
+                resolved_reasoning_effort,
                 agents_states,
             }),
         )

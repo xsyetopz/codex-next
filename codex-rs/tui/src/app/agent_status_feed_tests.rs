@@ -2,7 +2,60 @@ use super::*;
 use codex_app_server_protocol::CommandExecutionSource;
 use codex_app_server_protocol::CommandExecutionStatus;
 use codex_app_server_protocol::ItemCompletedNotification;
+use codex_app_server_protocol::Turn;
+use codex_app_server_protocol::TurnItemsView;
+use codex_app_server_protocol::TurnStatus;
 use codex_utils_absolute_path::AbsolutePathBuf;
+
+#[test]
+fn agent_status_preserves_resumed_activity_without_replay_duplicates() {
+    let item = ThreadItem::AgentMessage {
+        id: "message-1".to_string(),
+        text: "Recovered activity".to_string(),
+        phase: None,
+        memory_citation: None,
+        delivery: None,
+        questions: None,
+    };
+    let mut store = ThreadEventStore::new(/*capacity*/ 8);
+    store.turns.push(Turn {
+        id: "turn-1".to_string(),
+        items: vec![item.clone()],
+        items_view: TurnItemsView::Full,
+        status: TurnStatus::Completed,
+        error: None,
+        started_at: Some(1),
+        completed_at: Some(2),
+        duration_ms: Some(1000),
+    });
+
+    let resumed = AgentStatusThreadPreview::from_store("/root/reviewer".to_string(), &store);
+    pretty_assertions::assert_eq!(resumed.activity, vec!["Recovered activity"]);
+
+    store.push_notification(ServerNotification::ItemCompleted(
+        ItemCompletedNotification {
+            item,
+            thread_id: "thread-child".to_string(),
+            turn_id: "turn-1".to_string(),
+            completed_at_ms: 2000,
+        },
+    ));
+    let replayed = AgentStatusThreadPreview::from_store("/root/reviewer".to_string(), &store);
+    pretty_assertions::assert_eq!(replayed.activity, resumed.activity);
+    let rendered = AgentStatusHistoryCell::new(vec![replayed])
+        .display_lines(/*width*/ 80)
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    insta::assert_snapshot!(rendered, @r###"
+    /subagents
+    Sub-agents running
+
+      • `/root/reviewer`
+        Recovered activity
+    "###);
+}
 
 #[test]
 fn agent_status_uses_bounded_buffered_activity() {

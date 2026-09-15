@@ -23,7 +23,7 @@ impl ToolExecutor<ToolInvocation> for Handler {
             let mut analytics =
                 ToolCallAnalytics::new(&invocation, CollabAgentTool::InterruptAgent);
             let result = handle_interrupt_agent(invocation, &mut analytics).await;
-            analytics.finish(&result);
+            analytics.finish(result.is_ok()).await;
             result.map(boxed_tool_output)
         })
     }

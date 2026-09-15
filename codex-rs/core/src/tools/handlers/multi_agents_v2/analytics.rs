@@ -4,15 +4,19 @@ use codex_protocol::items::CollabAgentTool;
 use codex_protocol::items::CollabAgentToolCallItem;
 use codex_protocol::items::CollabAgentToolCallStatus;
 
+use crate::session::session::Session;
+use crate::session::turn_context::TurnContext;
 use crate::tools::context::ToolInvocation;
 use crate::turn_timing::now_unix_timestamp_ms;
 
-/// Records private collaborator analytics without emitting another public tool item.
+/// Records collaborator analytics and emits a metadata-only item publicly.
 pub(super) struct ToolCallAnalytics {
     client: AnalyticsEventsClient,
     turn_id: String,
     item: CollabAgentToolCallItem,
     started_at_ms: i64,
+    session: std::sync::Arc<Session>,
+    turn: std::sync::Arc<TurnContext>,
 }
 
 impl ToolCallAnalytics {
@@ -21,7 +25,6 @@ impl ToolCallAnalytics {
             client: invocation.session.services.analytics_events_client.clone(),
             turn_id: invocation.turn.sub_id.clone(),
             item: CollabAgentToolCallItem {
-                // Activity and analytics must use the same ID for turn-count deduplication.
                 id: invocation.call_id.clone(),
                 tool,
                 status: CollabAgentToolCallStatus::Interrupted,
@@ -31,9 +34,13 @@ impl ToolCallAnalytics {
                 prompt: None,
                 model: None,
                 reasoning_effort: None,
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: Default::default(),
             },
             started_at_ms: now_unix_timestamp_ms(),
+            session: invocation.session.clone(),
+            turn: invocation.turn.clone(),
         }
     }
 
@@ -41,17 +48,22 @@ impl ToolCallAnalytics {
         self.item.receiver_thread_ids = vec![thread_id];
     }
 
-    pub(super) fn finish<T, E>(mut self, result: &Result<T, E>) {
-        self.item.status = if result.is_ok() {
+    pub(super) async fn finish(mut self, succeeded: bool) {
+        self.item.status = if succeeded {
             CollabAgentToolCallStatus::Completed
         } else {
             CollabAgentToolCallStatus::Failed
         };
-    }
-}
-
-impl Drop for ToolCallAnalytics {
-    fn drop(&mut self) {
+        // Keep the operation distinct from an existing SubAgentActivity item that uses the
+        // tool call ID. The analytics event retains the original call ID for correlation.
+        self.session
+            .emit_turn_item_completed(
+                &self.turn,
+                codex_protocol::items::TurnItem::CollabAgentToolCall(public_item(
+                    self.item.clone(),
+                )),
+            )
+            .await;
         self.client.track_collab_tool_call(
             self.turn_id.clone(),
             self.item.clone(),
@@ -59,4 +71,9 @@ impl Drop for ToolCallAnalytics {
             now_unix_timestamp_ms(),
         );
     }
+}
+
+pub(super) fn public_item(mut item: CollabAgentToolCallItem) -> CollabAgentToolCallItem {
+    item.id = format!("{}::collab", item.id);
+    item
 }

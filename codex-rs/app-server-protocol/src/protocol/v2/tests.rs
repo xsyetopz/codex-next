@@ -3309,8 +3309,10 @@ fn core_turn_item_into_thread_item_converts_supported_variants() {
         receiver_thread_ids: vec![receiver_thread_id],
         receiver_agents: Vec::new(),
         prompt: Some("continue".to_string()),
-        model: None,
-        reasoning_effort: None,
+        model: Some("requested-model".to_string()),
+        reasoning_effort: Some(codex_protocol::openai_models::ReasoningEffort::Low),
+        resolved_model: Some("resolved-model".to_string()),
+        resolved_reasoning_effort: Some(codex_protocol::openai_models::ReasoningEffort::High),
         agents_states: [(receiver_thread_id, CoreAgentStatus::Completed(None))]
             .into_iter()
             .collect(),
@@ -3325,8 +3327,10 @@ fn core_turn_item_into_thread_item_converts_supported_variants() {
             sender_thread_id: sender_thread_id.to_string(),
             receiver_thread_ids: vec![receiver_thread_id.to_string()],
             prompt: Some("continue".to_string()),
-            model: None,
-            reasoning_effort: None,
+            model: Some("requested-model".to_string()),
+            reasoning_effort: Some(codex_protocol::openai_models::ReasoningEffort::Low),
+            resolved_model: Some("resolved-model".to_string()),
+            resolved_reasoning_effort: Some(codex_protocol::openai_models::ReasoningEffort::High,),
             agents_states: [(
                 receiver_thread_id.to_string(),
                 CollabAgentState {

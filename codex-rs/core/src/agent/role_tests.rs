@@ -292,6 +292,7 @@ async fn apply_role_regenerates_model_instructions_when_personality_changes() {
 #[tokio::test]
 async fn apply_role_reports_explicit_service_tier() {
     let (home, mut config) = test_config_with_cli_overrides(Vec::new()).await;
+    config.features.enable(Feature::FastMode).unwrap();
     let role_path = write_role_config(
         &home,
         "tiered-role.toml",

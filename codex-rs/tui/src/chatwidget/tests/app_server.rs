@@ -512,6 +512,7 @@ async fn thread_settings_updated_updates_visible_state_without_transcript() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.2")).await;
     set_chatgpt_auth(&mut chat);
     set_fast_mode_test_catalog(&mut chat);
+    chat.set_feature_enabled(Feature::FastMode, /*enabled*/ true);
     chat.set_feature_enabled(Feature::Apps, /*enabled*/ true);
     let thread_id = ThreadId::new();
     let mut session = configured_thread_session(thread_id);
@@ -637,6 +638,8 @@ async fn collab_spawn_end_shows_requested_model_and_effort() {
                 prompt: Some("Explore the repo".to_string()),
                 model: Some("gpt-5".to_string()),
                 reasoning_effort: Some(ReasoningEffortConfig::High),
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: HashMap::new(),
             },
         }),
@@ -656,6 +659,8 @@ async fn collab_spawn_end_shows_requested_model_and_effort() {
                 prompt: Some("Explore the repo".to_string()),
                 model: None,
                 reasoning_effort: None,
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: HashMap::from([(
                     spawned_thread_id.to_string(),
                     AppServerCollabAgentState {
@@ -1249,6 +1254,8 @@ async fn live_app_server_collab_wait_items_render_history() {
                 prompt: None,
                 model: None,
                 reasoning_effort: None,
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: HashMap::new(),
             },
         }),
@@ -1272,6 +1279,8 @@ async fn live_app_server_collab_wait_items_render_history() {
                 prompt: None,
                 model: None,
                 reasoning_effort: None,
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: HashMap::from([
                     (
                         receiver_thread_id.to_string(),
@@ -1302,7 +1311,7 @@ async fn live_app_server_collab_wait_items_render_history() {
 }
 
 #[tokio::test]
-async fn live_app_server_collab_spawn_completed_renders_requested_model_and_effort() {
+async fn live_app_server_collab_spawn_completed_prefers_resolved_model_and_effort() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     let sender_thread_id =
         ThreadId::from_string("019cff70-2599-75e2-af72-b90000000002").expect("valid thread id");
@@ -1323,6 +1332,8 @@ async fn live_app_server_collab_spawn_completed_renders_requested_model_and_effo
                 prompt: Some("Explore the repo".to_string()),
                 model: Some("gpt-5".to_string()),
                 reasoning_effort: Some(ReasoningEffortConfig::High),
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: HashMap::new(),
             },
         }),
@@ -1343,6 +1354,8 @@ async fn live_app_server_collab_spawn_completed_renders_requested_model_and_effo
                 prompt: Some("Explore the repo".to_string()),
                 model: Some("gpt-5".to_string()),
                 reasoning_effort: Some(ReasoningEffortConfig::High),
+                resolved_model: Some("gpt-5.6-terra".to_string()),
+                resolved_reasoning_effort: Some(ReasoningEffortConfig::Medium),
                 agents_states: HashMap::from([(
                     spawned_thread_id.to_string(),
                     AppServerCollabAgentState {

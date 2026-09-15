@@ -1347,6 +1347,12 @@ pub fn test_codex() -> TestCodexBuilder {
                 .features
                 .disable(Feature::ShellSnapshot)
                 .expect("test config should allow ShellSnapshot override");
+            // Preserve the historical integration-test baseline now that production defaults
+            // to standard service. Tests for the production default live in codex-features.
+            config
+                .features
+                .enable(Feature::FastMode)
+                .expect("test config should allow FastMode override");
         })],
         auth: CodexAuth::from_api_key("dummy"),
         pre_build_hooks: vec![],

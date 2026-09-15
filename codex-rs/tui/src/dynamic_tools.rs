@@ -1474,12 +1474,16 @@ fn turn_summary(turn: &Turn, include_outputs: bool, output_chars: usize) -> Valu
                 prompt,
                 model,
                 reasoning_effort,
+                resolved_model,
+                resolved_reasoning_effort,
                 ..
             } => json!({
                 "type": "collabAgentToolCall", "id": id, "tool": tool,
                 "status": status, "senderThreadId": sender_thread_id,
                 "receiverThreadIds": receiver_thread_ids, "prompt": prompt,
-                "model": model, "reasoningEffort": reasoning_effort
+                "model": model, "reasoningEffort": reasoning_effort,
+                "resolvedModel": resolved_model,
+                "resolvedReasoningEffort": resolved_reasoning_effort
             }),
             ThreadItem::SubAgentActivity {
                 id,

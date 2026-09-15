@@ -22,7 +22,7 @@ impl ToolExecutor<ToolInvocation> for Handler {
         Box::pin(async move {
             let analytics = ToolCallAnalytics::new(&invocation, CollabAgentTool::ListAgents);
             let result = self.handle_call(invocation).await;
-            analytics.finish(&result);
+            analytics.finish(result.is_ok()).await;
             result
         })
     }

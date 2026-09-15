@@ -1661,7 +1661,7 @@ pub const FEATURES: &[FeatureSpec] = &[
         id: Feature::FastMode,
         key: "fast_mode",
         stage: Stage::Stable,
-        default_enabled: true,
+        default_enabled: false,
     },
     FeatureSpec {
         id: Feature::StepModelSwitching,

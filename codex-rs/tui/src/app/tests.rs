@@ -1888,6 +1888,8 @@ async fn collab_receiver_notification_caches_thread_without_app_server_read() {
                 prompt: None,
                 model: None,
                 reasoning_effort: None,
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: HashMap::new(),
             },
         }),
@@ -1925,6 +1927,8 @@ async fn collab_receiver_notification_does_not_cache_not_found_thread() {
                 prompt: Some("hello".to_string()),
                 model: None,
                 reasoning_effort: None,
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: HashMap::from([(
                     receiver_thread_id.to_string(),
                     codex_app_server_protocol::CollabAgentState {
@@ -5757,6 +5761,8 @@ async fn clear_ui_header_shows_fast_status_for_fast_capable_models() {
     let mut app = make_test_app().await;
     app.config.cwd = test_path_buf("/tmp/project").abs();
     app.chat_widget.set_model("gpt-5.4");
+    app.chat_widget
+        .set_feature_enabled(Feature::FastMode, /*enabled*/ true);
     set_fast_mode_test_catalog(&mut app.chat_widget);
     app.chat_widget
         .set_reasoning_effort(Some(ReasoningEffortConfig::XHigh));
@@ -8181,6 +8187,8 @@ async fn replace_chat_widget_reseeds_collab_agent_metadata_for_replay() {
                             prompt: None,
                             model: None,
                             reasoning_effort: None,
+                            resolved_model: None,
+                            resolved_reasoning_effort: None,
                             agents_states: HashMap::new(),
                         },
                     },

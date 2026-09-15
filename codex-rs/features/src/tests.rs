@@ -108,6 +108,11 @@ fn default_enabled_features_are_stable() {
 }
 
 #[test]
+fn fast_mode_is_disabled_by_default() {
+    assert!(!Features::with_defaults().enabled(Feature::FastMode));
+}
+
+#[test]
 fn removed_apps_mcp_path_override_shapes_are_ignored() {
     let features = [
         toml::from_str::<FeaturesToml>("apps_mcp_path_override = true")

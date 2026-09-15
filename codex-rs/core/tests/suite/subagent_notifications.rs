@@ -59,6 +59,7 @@ use serde_json::Value;
 use serde_json::json;
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use test_case::test_case;
@@ -113,6 +114,38 @@ fn request_has_input_type(req: &wiremock::Request, ty: &str) -> bool {
                 .iter()
                 .any(|item| item.get("type").and_then(Value::as_str) == Some(ty))
         })
+}
+
+fn request_has_user_text(req: &wiremock::Request, text: &str) -> bool {
+    decoded_body(req)
+        .and_then(|body| serde_json::from_slice::<Value>(&body).ok())
+        .and_then(|body| body.get("input").and_then(Value::as_array).cloned())
+        .is_some_and(|items| {
+            items.iter().any(|item| {
+                item.get("role").and_then(Value::as_str) == Some("user")
+                    && item
+                        .get("content")
+                        .and_then(Value::as_array)
+                        .is_some_and(|content| {
+                            content.iter().any(|part| {
+                                part.get("text")
+                                    .and_then(Value::as_str)
+                                    .is_some_and(|value| value.contains(text))
+                            })
+                        })
+            })
+        })
+}
+
+fn request_uses_model(req: &wiremock::Request, model: &str) -> bool {
+    decoded_body(req)
+        .and_then(|body| serde_json::from_slice::<Value>(&body).ok())
+        .and_then(|body| {
+            body.get("model")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .is_some_and(|value| value == model)
 }
 
 fn decoded_body(req: &wiremock::Request) -> Option<Vec<u8>> {
@@ -1384,7 +1417,7 @@ enum FullHistoryV2ModelSelection {
 #[test_case(FullHistoryV2ModelSelection::MultiAgentModeInstructions; "full fork drops inherited multi-agent mode instructions")]
 #[test_case(FullHistoryV2ModelSelection::MultiAgentModeTransitions; "full fork restores explicit policy after proactive transition")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn spawned_full_history_v2_child_uses_model_precedence_without_dropping_context(
+async fn spawned_v2_child_uses_fork_and_model_precedence(
     selection: FullHistoryV2ModelSelection,
 ) -> Result<()> {
     skip_if_no_network!(Ok(()));
@@ -1401,14 +1434,22 @@ async fn spawned_full_history_v2_child_uses_model_precedence_without_dropping_co
     )
     .await;
     let (spawn_args, expected_model, expected_reasoning_effort) = match selection {
-        FullHistoryV2ModelSelection::ConfiguredDefault
-        | FullHistoryV2ModelSelection::WorldStateIdentity
+        FullHistoryV2ModelSelection::ConfiguredDefault => (
+            json!({
+                "message": CHILD_PROMPT,
+                "task_name": "worker",
+            }),
+            V2_DEFAULT_MODEL,
+            V2_DEFAULT_REASONING_EFFORT,
+        ),
+        FullHistoryV2ModelSelection::WorldStateIdentity
         | FullHistoryV2ModelSelection::CurrentTimeReminders
         | FullHistoryV2ModelSelection::MultiAgentModeInstructions
         | FullHistoryV2ModelSelection::MultiAgentModeTransitions => (
             json!({
                 "message": CHILD_PROMPT,
                 "task_name": "worker",
+                "fork_turns": "all",
             }),
             V2_DEFAULT_MODEL,
             V2_DEFAULT_REASONING_EFFORT,
@@ -1470,10 +1511,18 @@ async fn spawned_full_history_v2_child_uses_model_precedence_without_dropping_co
         ]),
     )
     .await;
+    let root_thread_id = Arc::new(Mutex::new(None::<String>));
+    let root_thread_id_for_match = Arc::clone(&root_thread_id);
     let child_request_log = mount_sse_once_match(
         &server,
-        |req: &wiremock::Request| {
-            body_contains(req, CHILD_PROMPT) && !body_contains(req, SPAWN_CALL_ID)
+        move |req: &wiremock::Request| {
+            request_uses_model(req, expected_model)
+                && request_has_user_text(req, CHILD_PROMPT)
+                && root_thread_id_for_match
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .as_deref()
+                    .is_some_and(|thread_id| !body_contains(req, thread_id))
         },
         sse(vec![
             ev_response_created("resp-child-1"),
@@ -1580,6 +1629,10 @@ async fn spawned_full_history_v2_child_uses_model_precedence_without_dropping_co
         builder = builder.with_history_mode(ThreadHistoryMode::Paginated);
     }
     let test = builder.build(&server).await?;
+    *root_thread_id
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) =
+        Some(test.session_configured.thread_id.to_string());
     if matches!(selection, FullHistoryV2ModelSelection::WorldStateIdentity) {
         test.codex.submit(Op::Compact).await?;
         wait_for_event(&test.codex, |event| {
@@ -1641,7 +1694,19 @@ async fn spawned_full_history_v2_child_uses_model_precedence_without_dropping_co
     let parent_request = spawn_turn.single_request();
 
     let child_request = wait_for_request_with_model(&child_request_log, expected_model).await?;
-    assert!(child_request.body_contains_text(TURN_0_FORK_PROMPT));
+    let child_request_thread_id = child_request.body_json()["client_metadata"]["thread_id"]
+        .as_str()
+        .unwrap_or("<missing>")
+        .to_string();
+    let child_user_messages = child_request.message_input_texts("user");
+    assert_eq!(
+        child_user_messages
+            .iter()
+            .any(|text| text.contains(TURN_0_FORK_PROMPT)),
+        !matches!(selection, FullHistoryV2ModelSelection::ConfiguredDefault),
+        "omitted fork_turns should start fresh; explicit all should retain history: root={}, request={child_request_thread_id}, messages={child_user_messages:?}",
+        test.session_configured.thread_id
+    );
     let misaligned_child_messages = child_request
         .inputs_of_type("message")
         .into_iter()
@@ -1667,7 +1732,7 @@ async fn spawned_full_history_v2_child_uses_model_precedence_without_dropping_co
                     .filter(|text| text.as_str() == FULL_HISTORY_SUBAGENT_DEVELOPER_INSTRUCTIONS)
                     .count(),
             ),
-            (false, true, 1)
+            (false, false, 1)
         );
     }
     if !matches!(

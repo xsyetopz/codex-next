@@ -43,7 +43,6 @@ use codex_app_server_protocol::RawResponseCompletedNotification;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ServerRequest;
 use codex_app_server_protocol::ServerRequestResolvedNotification;
-use codex_app_server_protocol::SubAgentActivityKind;
 use codex_app_server_protocol::TextElement;
 use codex_app_server_protocol::ThreadDeleteParams;
 use codex_app_server_protocol::ThreadDeleteResponse;
@@ -873,7 +872,9 @@ async fn turn_start_sends_service_tier_id_to_model_request() -> Result<()> {
     let response_mock = responses::mount_sse_once(&server, body.clone()).await;
 
     let codex_home = TempDir::new()?;
-    MockResponsesConfig::new(&server.uri()).write(codex_home.path())?;
+    MockResponsesConfig::new(&server.uri())
+        .enable_feature(Feature::FastMode)
+        .write(codex_home.path())?;
     write_models_cache(codex_home.path())?;
     let service_tier_model = all_model_presets()
         .iter()
@@ -4178,6 +4179,8 @@ async fn turn_start_emits_spawn_agent_item_with_model_metadata_v2() -> Result<()
             prompt: Some(CHILD_PROMPT.to_string()),
             model: Some(REQUESTED_MODEL.to_string()),
             reasoning_effort: Some(REQUESTED_REASONING_EFFORT),
+            resolved_model: None,
+            resolved_reasoning_effort: None,
             agents_states: HashMap::new(),
         }
     );
@@ -4203,6 +4206,8 @@ async fn turn_start_emits_spawn_agent_item_with_model_metadata_v2() -> Result<()
         prompt,
         model,
         reasoning_effort,
+        resolved_model,
+        resolved_reasoning_effort,
         agents_states,
     } = spawn_completed
     else {
@@ -4220,6 +4225,8 @@ async fn turn_start_emits_spawn_agent_item_with_model_metadata_v2() -> Result<()
     assert_eq!(prompt, Some(CHILD_PROMPT.to_string()));
     assert_eq!(model, Some(REQUESTED_MODEL.to_string()));
     assert_eq!(reasoning_effort, Some(REQUESTED_REASONING_EFFORT));
+    assert_eq!(resolved_model, Some(REQUESTED_MODEL.to_string()));
+    assert_eq!(resolved_reasoning_effort, Some(REQUESTED_REASONING_EFFORT));
     let agent_state = agents_states
         .get(&receiver_thread_id)
         .expect("spawn completion should include child agent state");
@@ -4362,6 +4369,18 @@ async fn direct_input_to_multi_agent_v2_subagent_is_rejected(
         ]),
     )
     .await;
+    let _child_turn = responses::mount_sse_once_match(
+        &server,
+        |req: &wiremock::Request| {
+            body_contains(req, CHILD_PROMPT) && !body_contains(req, SPAWN_CALL_ID)
+        },
+        responses::sse(vec![
+            responses::ev_response_created("resp-child-direct-input-rejection"),
+            responses::ev_assistant_message("msg-child-direct-input-rejection", "child done"),
+            responses::ev_completed("resp-child-direct-input-rejection"),
+        ]),
+    )
+    .await;
     let codex_home = TempDir::new()?;
     MockResponsesConfig::new(&server.uri())
         .enable_feature(Feature::MultiAgentV2)
@@ -4402,19 +4421,28 @@ async fn direct_input_to_multi_agent_v2_subagent_is_rejected(
         loop {
             let completed: ItemCompletedNotification =
                 mcp.read_notification("item/completed").await?;
-            assert!(!matches!(
-                &completed.item,
-                ThreadItem::CollabAgentToolCall { .. }
-            ));
-            if let ThreadItem::SubAgentActivity {
+            if let ThreadItem::CollabAgentToolCall {
                 id,
-                kind: SubAgentActivityKind::Started,
-                agent_thread_id,
+                status: CollabAgentToolCallStatus::Completed,
+                receiver_thread_ids,
                 ..
             } = completed.item
-                && id == SPAWN_CALL_ID
+                && id == format!("{SPAWN_CALL_ID}::collab")
             {
-                return Ok::<String, anyhow::Error>(agent_thread_id);
+                return receiver_thread_ids.into_iter().next().ok_or_else(|| {
+                    anyhow::anyhow!("spawn completion is missing the child thread")
+                });
+            }
+        }
+    })
+    .await??;
+
+    timeout(DEFAULT_READ_TIMEOUT, async {
+        loop {
+            let completed: TurnCompletedNotification =
+                mcp.read_notification("turn/completed").await?;
+            if completed.thread_id == child_thread_id {
+                return Ok::<(), anyhow::Error>(());
             }
         }
     })
@@ -4834,6 +4862,8 @@ config_file = "./custom-role.toml"
         prompt,
         model,
         reasoning_effort,
+        resolved_model,
+        resolved_reasoning_effort,
         agents_states,
     } = spawn_completed
     else {
@@ -4849,8 +4879,10 @@ config_file = "./custom-role.toml"
     assert_eq!(sender_thread_id, thread.id);
     assert_eq!(receiver_thread_ids, vec![receiver_thread_id.clone()]);
     assert_eq!(prompt, Some(CHILD_PROMPT.to_string()));
-    assert_eq!(model, Some(ROLE_MODEL.to_string()));
-    assert_eq!(reasoning_effort, Some(ROLE_REASONING_EFFORT));
+    assert_eq!(model, Some(REQUESTED_MODEL.to_string()));
+    assert_eq!(reasoning_effort, Some(REQUESTED_REASONING_EFFORT));
+    assert_eq!(resolved_model, Some(ROLE_MODEL.to_string()));
+    assert_eq!(resolved_reasoning_effort, Some(ROLE_REASONING_EFFORT));
     let agent_state = agents_states
         .get(&receiver_thread_id)
         .expect("spawn completion should include child agent state");

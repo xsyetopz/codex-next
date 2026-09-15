@@ -86,6 +86,8 @@ impl Handler {
                     prompt: None,
                     model: None,
                     reasoning_effort: None,
+                    resolved_model: None,
+                    resolved_reasoning_effort: None,
                     agents_states: Default::default(),
                 }),
             )
@@ -108,6 +110,8 @@ impl Handler {
                     prompt: None,
                     model: None,
                     reasoning_effort: None,
+                    resolved_model: None,
+                    resolved_reasoning_effort: None,
                     agents_states: HashMap::new(),
                 }),
             )

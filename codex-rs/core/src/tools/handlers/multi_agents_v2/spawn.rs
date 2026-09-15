@@ -43,10 +43,18 @@ impl ToolExecutor<ToolInvocation> for Handler {
     {
         Box::pin(async move {
             let analytics = invocation.session.services.analytics_events_client.clone();
+            let session = invocation.session.clone();
+            let turn = invocation.turn.clone();
             let sender_thread_id = invocation.session.thread_id;
             let turn_id = invocation.step_context.turn.sub_id.clone();
             let call_id = invocation.call_id.clone();
             let started_at_ms = now_unix_timestamp_ms();
+            let requested = match &invocation.payload {
+                ToolPayload::Function { arguments } => {
+                    serde_json::from_str::<SpawnAgentArgs>(arguments).ok()
+                }
+                ToolPayload::ToolSearch { .. } | ToolPayload::Custom { .. } => None,
+            };
             let result = handle_spawn_agent(invocation).await;
             let completed_at_ms = now_unix_timestamp_ms();
             let (status, receiver_thread_ids, agents_states) = match &result {
@@ -66,27 +74,73 @@ impl ToolExecutor<ToolInvocation> for Handler {
                 .ok()
                 .and_then(|(_, _, _, snapshot)| snapshot.as_ref());
 
-            analytics.track_collab_tool_call(
-                turn_id,
-                CollabAgentToolCallItem {
-                    id: call_id,
-                    tool: CollabAgentTool::SpawnAgent,
-                    status,
-                    sender_thread_id,
-                    receiver_thread_ids,
-                    receiver_agents: Vec::new(),
-                    prompt: None,
-                    model: agent_snapshot.map(|snapshot| snapshot.model.clone()),
-                    reasoning_effort: agent_snapshot
-                        .and_then(|snapshot| snapshot.reasoning_effort.clone()),
-                    agents_states,
-                },
-                started_at_ms,
-                completed_at_ms,
-            );
+            let item = CollabAgentToolCallItem {
+                id: call_id,
+                tool: CollabAgentTool::SpawnAgent,
+                status,
+                sender_thread_id,
+                receiver_thread_ids,
+                receiver_agents: Vec::new(),
+                prompt: None,
+                // This V2 item is emitted for observability. Keep requested settings
+                // distinct from the configuration the spawned thread actually resolved.
+                model: requested.as_ref().and_then(|args| args.model.clone()),
+                reasoning_effort: requested
+                    .as_ref()
+                    .and_then(|args| args.reasoning_effort.clone()),
+                resolved_model: agent_snapshot.map(|snapshot| snapshot.model.clone()),
+                resolved_reasoning_effort: agent_snapshot
+                    .and_then(|snapshot| snapshot.reasoning_effort.clone()),
+                agents_states,
+            };
+            session
+                .emit_turn_item_completed(
+                    &turn,
+                    codex_protocol::items::TurnItem::CollabAgentToolCall(
+                        super::analytics::public_item(item.clone()),
+                    ),
+                )
+                .await;
+            analytics.track_collab_tool_call(turn_id, item, started_at_ms, completed_at_ms);
 
             result.map(|(output, _, _, _)| boxed_tool_output(output))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(fork_turns: Option<&str>) -> SpawnAgentArgs {
+        SpawnAgentArgs {
+            message: "inspect".to_string(),
+            task_name: "worker".to_string(),
+            agent_type: None,
+            model: None,
+            reasoning_effort: None,
+            fork_turns: fork_turns.map(str::to_string),
+            fork_context: None,
+        }
+    }
+
+    #[test]
+    fn omitted_blank_and_none_fork_turns_are_fresh() {
+        for value in [None, Some(""), Some("  \t"), Some("none"), Some(" NONE ")] {
+            assert_eq!(args(value).fork_mode().expect("valid fork mode"), None);
+        }
+    }
+
+    #[test]
+    fn explicit_all_and_positive_fork_turns_are_preserved() {
+        assert_eq!(
+            args(Some(" all ")).fork_mode().expect("valid full fork"),
+            Some(SpawnAgentForkMode::FullHistory)
+        );
+        assert_eq!(
+            args(Some("3")).fork_mode().expect("valid partial fork"),
+            Some(SpawnAgentForkMode::LastNTurns(3))
+        );
     }
 }
 
@@ -295,12 +349,14 @@ impl SpawnAgentArgs {
             ));
         }
 
-        let fork_turns = self
+        let Some(fork_turns) = self
             .fork_turns
             .as_deref()
             .map(str::trim)
             .filter(|fork_turns| !fork_turns.is_empty())
-            .unwrap_or("all");
+        else {
+            return Ok(None);
+        };
 
         if fork_turns.eq_ignore_ascii_case("none") {
             return Ok(None);

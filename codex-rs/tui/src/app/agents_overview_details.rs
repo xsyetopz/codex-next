@@ -32,6 +32,7 @@ pub(super) fn preview_text(text: &str) -> String {
 pub(super) struct AgentsOverviewActivity {
     reasoning: Option<ReasoningPreview>,
     last_message: Option<String>,
+    last_operation: Option<String>,
 }
 
 struct ReasoningPreview {
@@ -90,6 +91,12 @@ impl App {
                 activity.last_message = Some(preview_text(text));
                 activity.reasoning = None;
                 true
+            }
+            ServerNotification::ItemCompleted(ItemCompletedNotification { item, .. }) => {
+                let summary = crate::multi_agents::agent_activity_summary(item);
+                let changed = summary != activity.last_operation;
+                activity.last_operation = summary;
+                changed
             }
             ServerNotification::TurnStarted(_)
             | ServerNotification::TurnCompleted(_)
@@ -199,6 +206,13 @@ impl App {
                 Line::default(),
                 "Last message".dim().into(),
                 message.clone().into(),
+            ]);
+        }
+        if let Some(operation) = activity.and_then(|activity| activity.last_operation.as_ref()) {
+            lines.extend([
+                Line::default(),
+                "Last operation".dim().into(),
+                operation.clone().into(),
             ]);
         }
         lines

@@ -9840,7 +9840,8 @@ async fn default_service_tier_override_uses_default_request_value() -> std::io::
 
 #[tokio::test]
 async fn legacy_fast_service_tier_override_uses_priority_request_value() -> std::io::Result<()> {
-    let fixture = create_test_fixture()?;
+    let mut fixture = create_test_fixture()?;
+    fixture.cfg.features = Some(toml::from_str("fast_mode = true").expect("valid features TOML"));
 
     let config = Config::load_from_base_config_with_overrides(
         fixture.cfg.clone(),
@@ -9863,6 +9864,7 @@ async fn legacy_fast_service_tier_override_uses_priority_request_value() -> std:
 #[tokio::test]
 async fn config_toml_priority_service_tier_uses_priority_request_value() -> std::io::Result<()> {
     let mut fixture = create_test_fixture()?;
+    fixture.cfg.features = Some(toml::from_str("fast_mode = true").expect("valid features TOML"));
     fixture.cfg.service_tier = Some(ServiceTier::Fast.request_value().to_string());
     let cwd = fixture.cwd_path();
     let codex_home = fixture.codex_home();
@@ -9911,6 +9913,7 @@ async fn config_toml_service_tier_accepts_arbitrary_string() -> std::io::Result<
 #[tokio::test]
 async fn config_toml_legacy_fast_service_tier_uses_priority_request_value() -> std::io::Result<()> {
     let mut fixture = create_test_fixture()?;
+    fixture.cfg.features = Some(toml::from_str("fast_mode = true").expect("valid features TOML"));
     fixture.cfg.service_tier = Some("fast".to_string());
     let cwd = fixture.cwd_path();
     let codex_home = fixture.codex_home();

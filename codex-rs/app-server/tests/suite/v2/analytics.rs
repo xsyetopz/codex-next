@@ -362,10 +362,18 @@ async fn multi_agent_v2_tools_emit_collaborator_analytics() -> Result<()> {
             _ => None,
         })
         .expect("spawn should retain its public activity item");
-    assert!(
-        !items
-            .iter()
-            .any(|item| matches!(item, ThreadItem::CollabAgentToolCall { .. }))
+    let operation_ids = items
+        .iter()
+        .filter_map(|item| match item {
+            ThreadItem::CollabAgentToolCall { id, .. } => Some(id.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        operation_ids,
+        (0..calls.len())
+            .map(|index| format!("call-{index}::collab"))
+            .collect::<Vec<_>>()
     );
     let activity_ids = items
         .iter()

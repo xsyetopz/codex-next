@@ -486,8 +486,14 @@ impl TurnToolCounts {
                 kind: SubAgentActivityKind::Completed,
                 ..
             } => return,
-            ThreadItem::CollabAgentToolCall { id, .. }
-            | ThreadItem::SubAgentActivity { id, .. } => {
+            ThreadItem::CollabAgentToolCall { id, .. } => {
+                let call_id = id.strip_suffix("::collab").unwrap_or(id);
+                if !self.subagent_tool_call_ids.insert(call_id.to_string()) {
+                    return;
+                }
+                self.subagent_tool_call += 1;
+            }
+            ThreadItem::SubAgentActivity { id, .. } => {
                 if !self.subagent_tool_call_ids.insert(id.clone()) {
                     return;
                 }

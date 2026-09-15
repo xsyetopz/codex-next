@@ -2961,6 +2961,8 @@ async fn collaborator_tool_events_keep_response_ids_when_completion_races_sampli
             prompt: None,
             model: None,
             reasoning_effort: None,
+            resolved_model: None,
+            resolved_reasoning_effort: None,
             agents_states: Default::default(),
         };
         reducer
@@ -5391,6 +5393,8 @@ async fn turn_event_counts_completed_tool_items() {
             prompt: Some("help".to_string()),
             model: Some("gpt-5".to_string()),
             reasoning_effort: None,
+            resolved_model: None,
+            resolved_reasoning_effort: None,
             agents_states: Default::default(),
         },
         ThreadItem::SubAgentActivity {

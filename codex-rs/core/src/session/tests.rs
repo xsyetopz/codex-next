@@ -6407,7 +6407,8 @@ pub(crate) async fn build_world_state_from_turn_context(
 pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
     let (tx_event, _rx_event) = async_channel::unbounded();
     let codex_home = tempfile::tempdir().expect("create temp dir");
-    let config = build_test_config(codex_home.path()).await;
+    let mut config = build_test_config(codex_home.path()).await;
+    config.features.enable(Feature::FastMode).unwrap();
     let config = Arc::new(config);
     let thread_id = ThreadId::default();
     let auth_manager = AuthManager::from_auth_for_testing(CodexAuth::from_api_key("Test API Key"));

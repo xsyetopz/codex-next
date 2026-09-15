@@ -377,6 +377,10 @@ pub enum ThreadItem {
         model: Option<String>,
         /// Reasoning effort requested for the spawned agent, when applicable.
         reasoning_effort: Option<ReasoningEffort>,
+        /// Model resolved for the recipient after role and runtime defaults apply.
+        resolved_model: Option<String>,
+        /// Reasoning effort resolved for the recipient after role and runtime defaults apply.
+        resolved_reasoning_effort: Option<ReasoningEffort>,
         /// Last known status of the target agents, when available.
         agents_states: HashMap<String, CollabAgentState>,
     },
@@ -957,6 +961,8 @@ impl From<CoreTurnItem> for ThreadItem {
                 prompt: call.prompt,
                 model: call.model,
                 reasoning_effort: call.reasoning_effort,
+                resolved_model: call.resolved_model,
+                resolved_reasoning_effort: call.resolved_reasoning_effort,
                 agents_states: call
                     .agents_states
                     .into_iter()

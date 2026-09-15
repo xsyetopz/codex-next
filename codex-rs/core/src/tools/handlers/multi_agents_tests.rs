@@ -740,7 +740,8 @@ async fn multi_agent_v2_full_history_fork_inherits_root_service_tier() {
             "spawn_agent",
             function_payload(json!({
                 "message": "inspect this repo",
-                "task_name": "fork_with_tier"
+                "task_name": "fork_with_tier",
+                "fork_turns": "all"
             })),
         ))
         .await

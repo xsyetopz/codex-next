@@ -29,6 +29,8 @@ use std::collections::HashSet;
 const COLLAB_PROMPT_PREVIEW_GRAPHEMES: usize = 160;
 const COLLAB_AGENT_ERROR_PREVIEW_GRAPHEMES: usize = 160;
 const COLLAB_AGENT_RESPONSE_PREVIEW_GRAPHEMES: usize = 240;
+pub(crate) const AGENT_ACTIVITY_PREVIEW_ITEMS: usize = 6;
+pub(crate) const AGENT_ACTIVITY_PREVIEW_GRAPHEMES: usize = 240;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AgentPickerThreadEntry {
@@ -189,15 +191,99 @@ pub(crate) fn spawn_request_summary(item: &ThreadItem) -> Option<SpawnRequestSum
     match item {
         ThreadItem::CollabAgentToolCall {
             tool: CollabAgentTool::SpawnAgent,
-            model: Some(model),
-            reasoning_effort: Some(reasoning_effort),
+            model,
+            reasoning_effort,
+            resolved_model,
+            resolved_reasoning_effort,
             ..
         } => Some(SpawnRequestSummary {
-            model: model.clone(),
-            reasoning_effort: reasoning_effort.clone(),
+            model: resolved_model.as_ref().or(model.as_ref())?.clone(),
+            reasoning_effort: resolved_reasoning_effort
+                .as_ref()
+                .or(reasoning_effort.as_ref())?
+                .clone(),
         }),
         _ => None,
     }
+}
+
+/// Projects an existing public turn item into bounded, plaintext activity.
+///
+/// Both the local `/subagents` view and daemon-wide `agents` overview use this
+/// function. It never fetches transcript content or exposes function outputs.
+pub(crate) fn agent_activity_summary(item: &ThreadItem) -> Option<String> {
+    let summary = match item {
+        ThreadItem::AgentMessage { text, .. } | ThreadItem::Plan { text, .. } => text,
+        ThreadItem::Reasoning { summary, .. } => summary.last()?,
+        ThreadItem::CommandExecution { command, .. } => {
+            let command = truncate_text(
+                command,
+                AGENT_ACTIVITY_PREVIEW_GRAPHEMES.saturating_sub("$ ".len()),
+            );
+            return bounded_agent_activity(&format!("$ {command}"));
+        }
+        ThreadItem::FileChange { changes, .. } => {
+            return bounded_agent_activity(&format!("Updated {} file(s)", changes.len()));
+        }
+        ThreadItem::McpToolCall { server, tool, .. } => {
+            return bounded_agent_activity(&format!("MCP {server}/{tool}"));
+        }
+        ThreadItem::DynamicToolCall {
+            namespace, tool, ..
+        } => {
+            let tool = namespace
+                .as_ref()
+                .map(|namespace| format!("{namespace}/{tool}"))
+                .unwrap_or_else(|| tool.clone());
+            return bounded_agent_activity(&format!("Tool {tool}"));
+        }
+        ThreadItem::CollabAgentToolCall { tool, .. } => {
+            let action = match tool {
+                CollabAgentTool::SendMessage => "Sent a message to an agent",
+                CollabAgentTool::FollowupTask => "Sent a follow-up task",
+                CollabAgentTool::InterruptAgent => "Interrupted an agent",
+                CollabAgentTool::ListAgents => "Listed agents",
+                CollabAgentTool::SpawnAgent => "Spawned an agent",
+                CollabAgentTool::SendInput => "Sent input to an agent",
+                CollabAgentTool::ResumeAgent => "Resumed an agent",
+                CollabAgentTool::Wait => "Waited for an agent",
+                CollabAgentTool::CloseAgent => "Closed an agent",
+            };
+            return Some(action.to_string());
+        }
+        ThreadItem::SubAgentActivity {
+            kind, agent_path, ..
+        } => {
+            let action = match kind {
+                SubAgentActivityKind::Started => "Started",
+                SubAgentActivityKind::Interacted => "Contacted",
+                SubAgentActivityKind::Interrupted => "Interrupted",
+                SubAgentActivityKind::Completed => "Completed",
+            };
+            return bounded_agent_activity(&format!("{action} {agent_path}"));
+        }
+        ThreadItem::WebSearch(item) => {
+            return bounded_agent_activity(&format!("Web search: {}", item.query));
+        }
+        ThreadItem::ImageView { path, .. } => {
+            return bounded_agent_activity(&format!("Viewed {}", path.render_for_ui()));
+        }
+        ThreadItem::ImageGeneration(_) => return Some("Generated an image".to_string()),
+        ThreadItem::EnteredReviewMode { .. } => return Some("Entered review mode".to_string()),
+        ThreadItem::ExitedReviewMode { .. } => return Some("Exited review mode".to_string()),
+        ThreadItem::ContextCompaction { .. } => return Some("Compacted context".to_string()),
+        ThreadItem::UserMessage { .. }
+        | ThreadItem::HookPrompt { .. }
+        | ThreadItem::FunctionCallOutput { .. }
+        | ThreadItem::Sleep(_) => return None,
+    };
+    bounded_agent_activity(summary)
+}
+
+fn bounded_agent_activity(summary: &str) -> Option<String> {
+    let summary = truncate_text(summary, AGENT_ACTIVITY_PREVIEW_GRAPHEMES);
+    let summary = summary.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!summary.is_empty()).then_some(summary)
 }
 
 pub(crate) fn tool_call_history_cell(
@@ -737,6 +823,8 @@ mod tests {
                 prompt: Some("Compute 11! and reply with just the integer result.".to_string()),
                 model: Some("gpt-5".to_string()),
                 reasoning_effort: Some(ReasoningEffortConfig::High),
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: HashMap::from([(
                     robie_id.to_string(),
                     agent_state(CollabAgentStatus::PendingInit, /*message*/ None),
@@ -757,6 +845,8 @@ mod tests {
                 prompt: Some("Please continue and return the answer only.".to_string()),
                 model: None,
                 reasoning_effort: None,
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: HashMap::from([(
                     robie_id.to_string(),
                     agent_state(CollabAgentStatus::Running, /*message*/ None),
@@ -777,6 +867,8 @@ mod tests {
                 prompt: None,
                 model: None,
                 reasoning_effort: None,
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: HashMap::new(),
             },
             /*cached_spawn_request*/ None,
@@ -794,6 +886,8 @@ mod tests {
                 prompt: None,
                 model: None,
                 reasoning_effort: None,
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: HashMap::from([
                     (
                         robie_id.to_string(),
@@ -820,6 +914,8 @@ mod tests {
                 prompt: None,
                 model: None,
                 reasoning_effort: None,
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: HashMap::from([(
                     robie_id.to_string(),
                     agent_state(CollabAgentStatus::Completed, Some("39916800")),
@@ -904,6 +1000,8 @@ mod tests {
                 prompt: Some(String::new()),
                 model: Some("gpt-5".to_string()),
                 reasoning_effort: Some(ReasoningEffortConfig::High),
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: HashMap::from([(
                     robie_id.to_string(),
                     agent_state(CollabAgentStatus::PendingInit, /*message*/ None),
@@ -943,6 +1041,8 @@ mod tests {
                 prompt: None,
                 model: None,
                 reasoning_effort: None,
+                resolved_model: None,
+                resolved_reasoning_effort: None,
                 agents_states: HashMap::from([(
                     robie_id.to_string(),
                     agent_state(CollabAgentStatus::Interrupted, /*message*/ None),

@@ -2349,6 +2349,7 @@ async fn commentary_completion_restores_status_indicator_before_exec_begin() {
 #[tokio::test]
 async fn fast_status_indicator_requires_chatgpt_auth() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
+    chat.set_feature_enabled(Feature::FastMode, /*enabled*/ true);
     set_fast_mode_test_catalog(&mut chat);
     assert!(get_available_model(&chat, "gpt-5.4").supports_fast_mode());
     chat.set_service_tier(Some(ServiceTier::Fast.request_value().to_string()));
@@ -3899,6 +3900,7 @@ async fn completed_turn_clears_visible_running_hook() {
 #[tokio::test]
 async fn status_line_fast_mode_renders_on_and_off() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
+    chat.set_feature_enabled(Feature::FastMode, /*enabled*/ true);
     set_fast_mode_test_catalog(&mut chat);
     chat.local_settings.tui.status_line = Some(vec!["fast-mode".to_string()]);
 
@@ -3913,6 +3915,7 @@ async fn status_line_fast_mode_renders_on_and_off() {
 #[tokio::test]
 async fn status_line_fast_mode_updates_visibility_on_model_change() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
+    chat.set_feature_enabled(Feature::FastMode, /*enabled*/ true);
     set_fast_mode_test_catalog(&mut chat);
     chat.local_settings.tui.status_line = Some(vec!["fast-mode".to_string()]);
 
@@ -3961,6 +3964,7 @@ async fn status_line_fast_mode_footer_snapshot() {
 #[tokio::test]
 async fn status_line_model_with_reasoning_includes_fast_for_fast_capable_models() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
+    chat.set_feature_enabled(Feature::FastMode, /*enabled*/ true);
     set_fast_mode_test_catalog(&mut chat);
     assert!(get_available_model(&chat, "gpt-5.4").supports_fast_mode());
     chat.config.cwd = test_project_path().abs();
@@ -4128,6 +4132,7 @@ async fn status_line_model_with_reasoning_fast_footer_snapshot() {
     use ratatui::backend::TestBackend;
 
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
+    chat.set_feature_enabled(Feature::FastMode, /*enabled*/ true);
     set_fast_mode_test_catalog(&mut chat);
     assert!(get_available_model(&chat, "gpt-5.4").supports_fast_mode());
     chat.show_welcome_banner = false;
@@ -4162,6 +4167,7 @@ async fn status_line_model_with_reasoning_context_remaining_footer_snapshot() {
     use ratatui::backend::TestBackend;
 
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
+    chat.set_feature_enabled(Feature::FastMode, /*enabled*/ true);
     set_fast_mode_test_catalog(&mut chat);
     assert!(get_available_model(&chat, "gpt-5.4").supports_fast_mode());
     chat.show_welcome_banner = false;
