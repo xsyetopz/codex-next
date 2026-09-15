@@ -116,9 +116,11 @@ message content and hidden reasoning. No additional inference calls occur.
 - The final Rust 1.95.0 `just test` run executed 17,599 tests: 17,512 passed,
   87 failed, and 47 were skipped. Three tests recovered on retry and one was
   reported leaky. The earlier post-change run had 99 failures; all 12 failures
-  tied to the changed fork default, public collaboration items, requested versus
-  resolved metadata, fast-mode default, and their fixtures are green in the
-  final run.
+  that disappeared did not recur. Ten were tied to the changed fork default,
+  public collaboration items, requested versus resolved metadata, fast-mode
+  default, and their fixtures; two unrelated timing-sensitive tests also
+  recovered. The final run introduced no new failures relative to the earlier
+  run.
 - The remaining failures are retained rather than normalized: executor and
   selected-capability environment fixtures, missing CLI helper/runtime setup,
   Guardian fixtures, sandbox/platform behavior, remote MCP timing, unrelated
