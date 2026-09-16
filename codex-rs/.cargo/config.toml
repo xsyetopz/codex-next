@@ -1,3 +1,6 @@
+[env]
+RUSTY_V8_MIRROR = "https://github.com/openai/codex/releases/download/rusty-v8-v{version}/{file}"
+
 [target.'cfg(all(windows, target_env = "msvc"))']
 rustflags = ["-C", "link-arg=/STACK:8388608", "-C", "target-feature=+crt-static"]
 
