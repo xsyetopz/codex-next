@@ -5,6 +5,11 @@ source customization inventory and observability changes below are complete for
 this fork. The package was assembled for direct smoke testing but was not
 installed or released.
 
+The build and package evidence below records the pre-merge 0.154.0 baseline.
+The branch now includes upstream through
+`50d77959bf927293c4b5ddcca81d05331ae582ea`; post-merge checks are not represented
+by the historical counts and hashes in this ledger.
+
 ## Baseline build findings
 
 ### B1: Release workspace versions do not match the committed Cargo lockfile

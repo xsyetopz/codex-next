@@ -1,4 +1,4 @@
-# Codex 0.154.0-next
+# Codex next
 
 Source fork with a locally assembled and smoke-tested package. It has not been
 installed or released. See the
@@ -7,13 +7,13 @@ and [operator guide](operator-guide.md).
 
 ## Provenance
 
-- Baseline: upstream `6b9826e3aa83b1a5947db50f4332cb9c65f1b340`.
+- Upstream merge tip: `50d77959bf927293c4b5ddcca81d05331ae582ea`.
 - Development branch: `next/0.154.0`.
 - Existing fork `main`: `ee6814bfa4889fe9b2b3dcc9cc8bdd91effa8ab8`, preserved.
 - Issue search cutoff: reports created through 2026-09-14 UTC. Search results
   are candidates, not confirmed defects. A search page is not complete coverage.
-- Package version: `0.154.0-next`. The assembled package manifest carries this
-  version; the embedded CLI reports the pinned workspace identity, `0.154.0`.
+- Workspace package version: `0.154.0-next`. This is the fork's retained local
+  label and does not identify the merged upstream revision.
 
 ## Ownership boundaries
 

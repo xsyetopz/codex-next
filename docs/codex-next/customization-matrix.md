@@ -1,6 +1,6 @@
 # Customization matrix
 
-Pinned source: `6b9826e3aa83b1a5947db50f4332cb9c65f1b340` (Codex 0.154.0).
+Upstream merge tip: `50d77959bf927293c4b5ddcca81d05331ae582ea`.
 This inventory records client-owned controls only; service eligibility and host
 rendering remain external boundaries.
 

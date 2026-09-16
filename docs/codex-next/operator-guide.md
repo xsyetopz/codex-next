@@ -34,8 +34,8 @@ communication or hidden reasoning.
 
 ## Package and rollback
 
-The local smoke package is `0.154.0-next`; `codex --version` identifies the
-pinned CLI as `0.154.0`. Direct smoke checks cover the CLI, bundled search
+The historical local smoke package is `0.154.0-next`; its recorded
+`codex --version` output identifies the pre-merge CLI as `0.154.0`. Direct smoke checks cover the CLI, bundled search
 helper, code-mode host, strict app-server configuration loading,
 initialization, `thread/list`, and the daemon-wide `agents` interface. The
 package has not replaced a launcher, been installed, or been released.
