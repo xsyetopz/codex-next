@@ -1,8 +1,18 @@
 [env]
 RUSTY_V8_MIRROR = "https://github.com/openai/codex/releases/download/rusty-v8-v{version}/{file}"
 
+# Keep proc-macro debuginfo enabled so Cargo does not strip sqlx-macros with
+# LLVM's pre-1.98 Mach-O objcopy, which produces dylibs rejected by macOS 27.
+[profile.dev.package.sqlx-macros]
+debug = "limited"
+
 [target.'cfg(all(windows, target_env = "msvc"))']
-rustflags = ["-C", "link-arg=/STACK:8388608", "-C", "target-feature=+crt-static"]
+rustflags = [
+    "-C",
+    "link-arg=/STACK:8388608",
+    "-C",
+    "target-feature=+crt-static",
+]
 
 # MSVC emits a warning about code that may trip "Cortex-A53 MPCore processor bug #843419" (see
 # https://developer.arm.com/documentation/epm048406/latest) which is sometimes emitted by LLVM.
